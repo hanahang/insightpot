@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주식 안목 기르기 대시보드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        .red-text { color: #ef4444; } /* 플러스 수익률 (한국식 빨간색) */
+        .blue-text { color: #3b82f6; } /* 마이너스 수익률 (한국식 파란색) */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl shadow">
+        <h1 class="text-2xl font-bold text-gray-800 mb-4 md:mb-0">📈 모의 투자 대시보드</h1>
+        <div class="flex items-center space-x-4">
+            <div id="streak-banner" class="text-lg font-semibold text-orange-600 bg-orange-100 px-4 py-2 rounded-lg">
+                🔥 <span id="streak-count">0</span>일 연속 확인 중!
+            </div>
+            <button id="check-btn" onclick="dailyCheck()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold transition">
+                오늘 확인 완료
+            </button>
+        </div>
+    </div>
+    
+    <div id="warning-msg" class="max-w-6xl mx-auto mb-6 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow hidden">
+        ⚠️ <strong>오늘 종목 확인이 필요합니다!</strong> 주가를 업데이트하거나 '오늘 확인 완료' 버튼을 눌러주세요.
+    </div>
+
+    <div class="max-w-6xl mx-auto mb-6 flex justify-end space-x-2">
+        <button onclick="exportCSV()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm transition">CSV 내보내기</button>
+        <label class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-sm transition cursor-pointer">
+            CSV 가져오기
+            <input type="file" id="csv-file" accept=".csv" class="hidden" onchange="importCSV(event)">
+        </label>
+    </div>
+
+    <div class="max-w-6xl mx-auto mb-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        <div class="bg-white p-4 rounded-xl shadow text-center"><p class="text-sm text-gray-500">총 종목 수</p><p id="stat-total" class="text-xl font-bold">0</p></div>
+        <div class="bg-white p-4 rounded-xl shadow text-center"><p class="text-sm text-gray-500">평균 수익률</p><p id="stat-avg" class="text-xl font-bold">0%</p></div>
+        <div class="bg-white p-4 rounded-xl shadow text-center"><p class="text-sm text-gray-500">수익 / 손실</p><p id="stat-winloss" class="text-xl font-bold">0 / 0</p></div>
+        <div class="bg-white p-4 rounded-xl shadow text-center"><p class="text-sm text-gray-500">최고 수익률</p><p id="stat-best" class="text-lg font-bold truncate">-</p></div>
+        <div class="bg-white p-4 rounded-xl shadow text-center"><p class="text-sm text-gray-500">확신도 승률(상/중/하)</p><p id="stat-conviction" class="text-md font-bold mt-1">- / - / -</p></div>
+        <div class="bg-white p-4 rounded-xl shadow text-center"><p class="text-sm text-gray-500">베스트(섹터/이유)</p><p id="stat-best-reason" class="text-sm font-bold mt-1">- / -</p></div>
+    </div>
+
+    <div class="max-w-6xl mx-auto mb-8 bg-white p-6 rounded-xl shadow">
+        <h2 class="text-lg font-bold mb-4">새 종목 점찍기</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <input type="text" id="input-name" placeholder="종목명" class="border p-2 rounded">
+            
+            <div class="flex space-x-2">
+                <select id="input-sector" class="border p-2 rounded w-full" onchange="toggleCustom('input-sector', 'custom-sector')">
+                    <option value="">섹터 선택</option>
+                    <option>반도체</option><option>방산</option><option>양자컴퓨터</option><option>우주</option><option>소비재</option><option>바이오/제약</option><option>이차전지</option><option>AI/소프트웨어</option><option>엔터테인먼트</option><option>금융</option><option value="기타">기타 (직접입력)</option>
+                </select>
+                <input type="text" id="custom-sector" placeholder="직접 입력" class="border p-2 rounded hidden w-full">
+            </div>
+
+            <select id="input-conviction" class="border p-2 rounded">
+                <option value="">확신도 선택</option>
+                <option>상</option><option>중</option><option>하</option>
+            </select>
+
+            <div class="flex space-x-2">
+                <select id="input-reason" class="border p-2 rounded w-full" onchange="toggleCustom('input-reason', 'custom-reason')">
+                    <option value="">매수 이유</option>
+                    <option>대세테마</option><option>실적</option><option>유상증자</option><option>감자</option><option>IPO</option><option>합병</option><option>신제품/신기술 출시</option><option>차트/기술적 분석</option><option>정부 정책 수혜</option><option>외인/기관 수급</option><option value="기타">기타 (직접입력)</option>
+                </select>
+                <input type="text" id="custom-reason" placeholder="직접 입력" class="border p-2 rounded hidden w-full">
+            </div>
+
+            <input type="date" id="input-date" class="border p-2 rounded">
+            <input type="number" id="input-buy" placeholder="점찍은 날 가격(매수가)" class="border p-2 rounded">
+            <input type="text" id="input-target" placeholder="목표가/손절가" class="border p-2 rounded">
+            <button onclick="addStock()" class="bg-gray-800 hover:bg-black text-white p-2 rounded font-bold transition">등록하기</button>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto mb-8 bg-white p-6 rounded-xl shadow overflow-x-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-bold">관찰 중인 시나리오</h2>
+            <div class="flex space-x-2 text-sm">
+                <select id="filter-sector" onchange="renderTables()" class="border p-1 rounded"><option value="all">모든 섹터</option></select>
+                <select id="filter-conviction" onchange="renderTables()" class="border p-1 rounded"><option value="all">모든 확신도</option></select>
+                <select id="filter-reason" onchange="renderTables()" class="border p-1 rounded"><option value="all">모든 매수이유</option></select>
+            </div>
+        </div>
+        <table class="w-full text-left border-collapse min-w-[800px]">
+            <thead>
+                <tr class="border-b bg-gray-50 text-sm">
+                    <th class="p-2">종목명</th><th class="p-2">섹터</th><th class="p-2">확신도</th><th class="p-2">매수이유</th>
+                    <th class="p-2">경과일</th><th class="p-2">매수가</th><th class="p-2">현재가 입력</th><th class="p-2">수익률</th><th class="p-2">관리</th>
+                </tr>
+            </thead>
+            <tbody id="active-list"></tbody>
+        </table>
+    </div>
+
+    <div class="max-w-6xl mx-auto mb-8 bg-gray-50 p-6 rounded-xl border">
+        <h2 class="text-lg font-bold mb-4 text-gray-600">종료된 시나리오</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[800px] text-gray-500">
+                <thead>
+                    <tr class="border-b text-sm">
+                        <th class="p-2">종목명</th><th class="p-2">섹터</th><th class="p-2">매수이유</th><th class="p-2">매수가</th>
+                        <th class="p-2">최종가</th><th class="p-2">최종 수익률</th><th class="p-2">복기 한 줄</th><th class="p-2">관리</th>
+                    </tr>
+                </thead>
+                <tbody id="ended-list"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let stocks = JSON.parse(localStorage.getItem('stocks')) || [];
+        let endedStocks = JSON.parse(localStorage.getItem('endedStocks')) || [];
+        
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW 설정 안됨 (로컬 환경이 아닐 수 있음)'));
+        }
+
+        // Initialize Date
+        document.getElementById('input-date').valueAsDate = new Date();
+
+        function save() {
+            localStorage.setItem('stocks', JSON.stringify(stocks));
+            localStorage.setItem('endedStocks', JSON.stringify(endedStocks));
+            updateDashboard();
+            renderTables();
+        }
+
+        // --- Streak Logic ---
+        function checkStreakOnLoad() {
+            const today = new Date().toDateString();
+            const lastCheck = localStorage.getItem('lastCheckDate');
+            let streak = parseInt(localStorage.getItem('streak') || '0');
+
+            if (lastCheck !== today) {
+                document.getElementById('warning-msg').classList.remove('hidden');
+                
+                // Check if streak is broken
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                if (lastCheck !== yesterday.toDateString() && lastCheck != null) {
+                    streak = 0; // Reset
+                    localStorage.setItem('streak', streak);
+                }
+            } else {
+                document.getElementById('warning-msg').classList.add('hidden');
+            }
+            document.getElementById('streak-count').innerText = streak;
+        }
+
+        function dailyCheck() {
+            const today = new Date().toDateString();
+            const lastCheck = localStorage.getItem('lastCheckDate');
+            let streak = parseInt(localStorage.getItem('streak') || '0');
+
+            if (lastCheck !== today) {
+                streak++;
+                localStorage.setItem('streak', streak);
+                localStorage.setItem('lastCheckDate', today);
+                document.getElementById('warning-msg').classList.add('hidden');
+                document.getElementById('streak-count').innerText = streak;
+            }
+        }
+
+        // --- UI & Utility ---
+        function toggleCustom(selectId, customId) {
+            const val = document.getElementById(selectId).value;
+            const customInput = document.getElementById(customId);
+            if(val === '기타') { customInput.classList.remove('hidden'); } 
+            else { customInput.classList.add('hidden'); customInput.value = ''; }
+        }
+
+        function getElapsedDays(dateStr) {
+            const start = new Date(dateStr);
+            const now = new Date();
+            const diffTime = Math.abs(now - start);
+            return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        function getROI(buy, current) {
+            if(!current || current <= 0) return null;
+            return (((current - buy) / buy) * 100).toFixed(2);
+        }
+
+        function getColorClass(roi) {
+            if (roi > 0) return 'red-text font-bold';
+            if (roi < 0) return 'blue-text font-bold';
+            return 'font-bold';
+        }
+
+        // --- CRUD Operations ---
+        function addStock() {
+            let sector = document.getElementById('input-sector').value;
+            if(sector === '기타') sector = document.getElementById('custom-sector').value || '기타';
+            
+            let reason = document.getElementById('input-reason').value;
+            if(reason === '기타') reason = document.getElementById('custom-reason').value || '기타';
+
+            const newStock = {
+                id: Date.now().toString(),
+                name: document.getElementById('input-name').value,
+                sector: sector,
+                conviction: document.getElementById('input-conviction').value,
+                reason: reason,
+                date: document.getElementById('input-date').value,
+                buyPrice: parseFloat(document.getElementById('input-buy').value),
+                targetPrice: document.getElementById('input-target').value,
+                currentPrice: null
+            };
+
+            if(!newStock.name || !newStock.buyPrice) { alert('종목명과 매수가는 필수입니다.'); return; }
+            stocks.push(newStock);
+            save();
+            updateFilters();
+        }
+
+        function updatePrice(id, val) {
+            const stock = stocks.find(s => s.id === id);
+            if(stock) {
+                stock.currentPrice = parseFloat(val);
+                save();
+                dailyCheck(); // 가격 업데이트 시 자동 출석 처리
+            }
+        }
+
+        function endStock(id) {
+            const stockIndex = stocks.findIndex(s => s.id === id);
+            if(stockIndex > -1) {
+                const note = prompt('종료 복기 한 줄을 적어주세요:');
+                if(note !== null) {
+                    const stock = stocks[stockIndex];
+                    stock.review = note;
+                    stocks.splice(stockIndex, 1);
+                    endedStocks.push(stock);
+                    save();
+                }
+            }
+        }
+
+        function restoreStock(id) {
+            const stockIndex = endedStocks.findIndex(s => s.id === id);
+            if(stockIndex > -1) {
+                const stock = endedStocks[stockIndex];
+                delete stock.review;
+                endedStocks.splice(stockIndex, 1);
+                stocks.push(stock);
+                save();
+            }
+        }
+
+        // --- Filters & Render ---
+        function updateFilters() {
+            const sFilter = document.getElementById('filter-sector');
+            const cFilter = document.getElementById('filter-conviction');
+            const rFilter = document.getElementById('filter-reason');
+
+            const sectors = [...new Set(stocks.map(s => s.sector))];
+            const convictions = [...new Set(stocks.map(s => s.conviction))];
+            const reasons = [...new Set(stocks.map(s => s.reason))];
+
+            const fillFilter = (el, items, defaultText) => {
+                const currentVal = el.value;
+                el.innerHTML = `<option value="all">${defaultText}</option>` + items.map(i => `<option value="${i}">${i}</option>`).join('');
+                if(items.includes(currentVal)) el.value = currentVal;
+            };
+
+            fillFilter(sFilter, sectors, '모든 섹터');
+            fillFilter(cFilter, convictions, '모든 확신도');
+            fillFilter(rFilter, reasons, '모든 매수이유');
+        }
+
+        function renderTables() {
+            const activeList = document.getElementById('active-list');
+            const endedList = document.getElementById('ended-list');
+            
+            const sFilter = document.getElementById('filter-sector').value;
+            const cFilter = document.getElementById('filter-conviction').value;
+            const rFilter = document.getElementById('filter-reason').value;
+
+            activeList.innerHTML = '';
+            stocks.filter(s => {
+                return (sFilter === 'all' || s.sector === sFilter) &&
+                       (cFilter === 'all' || s.conviction === cFilter) &&
+                       (rFilter === 'all' || s.reason === rFilter);
+            }).forEach(s => {
+                const roi = getROI(s.buyPrice, s.currentPrice);
+                const roiText = roi ? `<span class="${getColorClass(roi)}">${roi}%</span>` : '-';
+                
+                activeList.innerHTML += `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-2 font-bold">${s.name}</td>
+                        <td class="p-2 text-sm">${s.sector}</td>
+                        <td class="p-2 text-sm">${s.conviction}</td>
+                        <td class="p-2 text-sm truncate max-w-[120px]">${s.reason}</td>
+                        <td class="p-2 text-sm">${getElapsedDays(s.date)}일째</td>
+                        <td class="p-2 text-sm">${s.buyPrice.toLocaleString()}</td>
+                        <td class="p-2"><input type="number" value="${s.currentPrice || ''}" onchange="updatePrice('${s.id}', this.value)" class="border p-1 w-24 rounded" placeholder="현재가"></td>
+                        <td class="p-2">${roiText}</td>
+                        <td class="p-2"><button onclick="endStock('${s.id}')" class="bg-red-500 text-white text-xs px-2 py-1 rounded">정산</button></td>
+                    </tr>
+                `;
+            });
+
+            endedList.innerHTML = '';
+            endedStocks.forEach(s => {
+                const roi = getROI(s.buyPrice, s.currentPrice);
+                const roiText = roi ? `<span class="${getColorClass(roi)}">${roi}%</span>` : '-';
+                endedList.innerHTML += `
+                    <tr class="border-b hover:bg-gray-100 bg-gray-50 text-sm">
+                        <td class="p-2 font-bold">${s.name}</td><td class="p-2">${s.sector}</td><td class="p-2">${s.reason}</td>
+                        <td class="p-2">${s.buyPrice.toLocaleString()}</td><td class="p-2">${s.currentPrice ? s.currentPrice.toLocaleString() : '-'}</td>
+                        <td class="p-2">${roiText}</td><td class="p-2 max-w-xs truncate" title="${s.review}">${s.review}</td>
+                        <td class="p-2"><button onclick="restoreStock('${s.id}')" class="bg-blue-500 text-white text-xs px-2 py-1 rounded">복원</button></td>
+                    </tr>
+                `;
+            });
+        }
+
+        // --- Dashboard Stats ---
+        function updateDashboard() {
+            const activeWithPrice = stocks.filter(s => s.currentPrice);
+            
+            document.getElementById('stat-total').innerText = stocks.length + '개';
+
+            if(activeWithPrice.length > 0) {
+                // Avg ROI
+                const totalROI = activeWithPrice.reduce((sum, s) => sum + parseFloat(getROI(s.buyPrice, s.currentPrice)), 0);
+                document.getElementById('stat-avg').innerText = (totalROI / activeWithPrice.length).toFixed(2) + '%';
+                
+                // Win/Loss
+                const wins = activeWithPrice.filter(s => getROI(s.buyPrice, s.currentPrice) > 0).length;
+                const losses = activeWithPrice.filter(s => getROI(s.buyPrice, s.currentPrice) < 0).length;
+                document.getElementById('stat-winloss').innerText = `${wins} / ${losses}`;
+
+                // Best Stock
+                const bestStock = activeWithPrice.reduce((max, s) => parseFloat(getROI(s.buyPrice, s.currentPrice)) > parseFloat(getROI(max.buyPrice, max.currentPrice)) ? s : max, activeWithPrice[0]);
+                document.getElementById('stat-best').innerText = `${getROI(bestStock.buyPrice, bestStock.currentPrice)}% (${bestStock.name})`;
+
+                // Win rate by conviction
+                const getRate = (level) => {
+                    const group = activeWithPrice.filter(s => s.conviction === level);
+                    if(group.length === 0) return '-';
+                    const win = group.filter(s => getROI(s.buyPrice, s.currentPrice) > 0).length;
+                    return Math.round((win / group.length) * 100) + '%';
+                };
+                document.getElementById('stat-conviction').innerText = `${getRate('상')} / ${getRate('중')} / ${getRate('하')}`;
+
+                // Best Sector & Reason
+                const groupByAvg = (key) => {
+                    const groups = {};
+                    activeWithPrice.forEach(s => {
+                        if(!groups[s[key]]) groups[s[key]] = [];
+                        groups[s[key]].push(parseFloat(getROI(s.buyPrice, s.currentPrice)));
+                    });
+                    let best = '-', maxAvg = -Infinity;
+                    for (const [k, arr] of Object.entries(groups)) {
+                        const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+                        if(avg > maxAvg) { maxAvg = avg; best = k; }
+                    }
+                    return best;
+                };
+                document.getElementById('stat-best-reason').innerText = `${groupByAvg('sector')} / ${groupByAvg('reason')}`;
+
+            } else {
+                document.getElementById('stat-avg').innerText = '0%';
+                document.getElementById('stat-winloss').innerText = '0 / 0';
+                document.getElementById('stat-best').innerText = '-';
+                document.getElementById('stat-conviction').innerText = '- / - / -';
+                document.getElementById('stat-best-reason').innerText = '- / -';
+            }
+        }
+
+        // --- CSV Export / Import ---
+        function escapeCSV(str) {
+            if(!str) return '';
+            str = str.toString();
+            if(str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        }
+
+        function exportCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            csvContent += "Type,ID,Name,Sector,Conviction,Reason,Date,BuyPrice,TargetPrice,CurrentPrice,Review\n";
+            
+            const rows = [];
+            stocks.forEach(s => {
+                rows.push(`Active,${s.id},${escapeCSV(s.name)},${escapeCSV(s.sector)},${escapeCSV(s.conviction)},${escapeCSV(s.reason)},${s.date},${s.buyPrice},${escapeCSV(s.targetPrice)},${s.currentPrice || ''},`);
+            });
+            endedStocks.forEach(s => {
+                rows.push(`Ended,${s.id},${escapeCSV(s.name)},${escapeCSV(s.sector)},${escapeCSV(s.conviction)},${escapeCSV(s.reason)},${s.date},${s.buyPrice},${escapeCSV(s.targetPrice)},${s.currentPrice || ''},${escapeCSV(s.review)}`);
+            });
+            
+            csvContent += rows.join("\n");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `stock_scenario_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function importCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const rows = text.split('\n').filter(row => row.trim() !== '');
+                if(rows.length < 2) return alert('유효하지 않은 CSV 파일입니다.');
+                
+                let newStocks = [], newEnded = [];
+                // Simple CSV parser ignoring headers
+                for(let i=1; i<rows.length; i++) {
+                    const row = rows[i];
+                    // Regex to handle commas inside quotes
+                    const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)?.map(col => col.replace(/(^"|"$)/g, '').replace(/""/g, '"')) || [];
+                    if(cols.length < 8) continue;
+
+                    const obj = {
+                        id: cols[1], name: cols[2], sector: cols[3], conviction: cols[4], 
+                        reason: cols[5], date: cols[6], buyPrice: parseFloat(cols[7]), 
+                        targetPrice: cols[8], currentPrice: cols[9] ? parseFloat(cols[9]) : null
+                    };
+
+                    if(cols[0] === 'Active') newStocks.push(obj);
+                    else if(cols[0] === 'Ended') {
+                        obj.review = cols[10] || '';
+                        newEnded.push(obj);
+                    }
+                }
+                stocks = newStocks;
+                endedStocks = newEnded;
+                save();
+                alert('데이터가 성공적으로 복구되었습니다.');
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // Reset input
+        }
+
+        // Initialize
+        checkStreakOnLoad();
+        updateFilters();
+        updateDashboard();
+        renderTables();
+    </script>
+</body>
+</html>
