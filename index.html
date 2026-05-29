@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>주식 안목 기르기 대시보드</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="manifest" href="manifest.json">
@@ -10,109 +10,93 @@
         .red-text { color: #ef4444; } /* 플러스 수익률 (한국식 빨간색) */
         .blue-text { color: #3b82f6; } /* 마이너스 수익률 (한국식 파란색) */
         .hidden { display: none !important; }
+        /* 모바일에서 입력 칸 클릭 시 화면 확대 방지 */
+        input, select { font-size: 16px !important; }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans p-4 md:p-8">
+<body class="bg-gray-100 text-gray-800 font-sans p-4 md:p-8 pb-20">
 
-    <div class="max-w-6xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl shadow">
-        <h1 class="text-2xl font-bold text-gray-800 mb-4 md:mb-0">📈 모의 투자 대시보드</h1>
-        <div class="flex items-center space-x-4">
-            <div id="streak-banner" class="text-lg font-semibold text-orange-600 bg-orange-100 px-4 py-2 rounded-lg">
-                🔥 <span id="streak-count">0</span>일 연속 확인 중!
+    <div class="max-w-6xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl shadow gap-4">
+        <h1 class="text-xl md:text-2xl font-bold text-gray-800">📈 모의 투자 대시보드</h1>
+        <div class="flex items-center space-x-3 w-full md:w-auto justify-between md:justify-end">
+            <div id="streak-banner" class="text-sm md:text-lg font-semibold text-orange-600 bg-orange-100 px-3 py-2 rounded-lg">
+                🔥 <span id="streak-count">0</span>일 연속 확인!
             </div>
-            <button id="check-btn" onclick="dailyCheck()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold transition">
+            <button id="check-btn" onclick="dailyCheck()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm md:text-base transition whitespace-nowrap">
                 오늘 확인 완료
             </button>
         </div>
     </div>
     
-    <div id="warning-msg" class="max-w-6xl mx-auto mb-6 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow hidden">
-        ⚠️ <strong>오늘 종목 확인이 필요합니다!</strong> 주가를 업데이트하거나 '오늘 확인 완료' 버튼을 눌러주세요.
+    <div id="warning-msg" class="max-w-6xl mx-auto mb-6 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow hidden text-sm">
+        ⚠️ <strong>오늘 종목 확인이 필요합니다!</strong> 현재가를 업데이트하거나 '오늘 확인 완료' 버튼을 눌러주세요.
     </div>
 
     <div class="max-w-6xl mx-auto mb-6 flex justify-end space-x-2">
-        <button onclick="exportCSV()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm transition">CSV 내보내기</button>
-        <label class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-sm transition cursor-pointer">
+        <button onclick="exportCSV()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm transition shadow">CSV 내보내기</button>
+        <label class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-sm transition shadow cursor-pointer">
             CSV 가져오기
             <input type="file" id="csv-file" accept=".csv" class="hidden" onchange="importCSV(event)">
         </label>
     </div>
 
-    <div class="max-w-6xl mx-auto mb-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <div class="bg-white p-4 rounded-xl shadow text-center"><p class="text-sm text-gray-500">총 종목 수</p><p id="stat-total" class="text-xl font-bold">0</p></div>
-        <div class="bg-white p-4 rounded-xl shadow text-center"><p class="text-sm text-gray-500">평균 수익률</p><p id="stat-avg" class="text-xl font-bold">0%</p></div>
-        <div class="bg-white p-4 rounded-xl shadow text-center"><p class="text-sm text-gray-500">수익 / 손실</p><p id="stat-winloss" class="text-xl font-bold">0 / 0</p></div>
-        <div class="bg-white p-4 rounded-xl shadow text-center"><p class="text-sm text-gray-500">최고 수익률</p><p id="stat-best" class="text-lg font-bold truncate">-</p></div>
-        <div class="bg-white p-4 rounded-xl shadow text-center"><p class="text-sm text-gray-500">확신도 승률(상/중/하)</p><p id="stat-conviction" class="text-md font-bold mt-1">- / - / -</p></div>
-        <div class="bg-white p-4 rounded-xl shadow text-center"><p class="text-sm text-gray-500">베스트(섹터/이유)</p><p id="stat-best-reason" class="text-sm font-bold mt-1">- / -</p></div>
+    <div class="max-w-6xl mx-auto mb-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div class="bg-white p-3 md:p-4 rounded-xl shadow text-center"><p class="text-xs text-gray-500">총 종목 수</p><p id="stat-total" class="text-lg md:text-xl font-bold">0</p></div>
+        <div class="bg-white p-3 md:p-4 rounded-xl shadow text-center"><p class="text-xs text-gray-500">평균 수익률</p><p id="stat-avg" class="text-lg md:text-xl font-bold">0%</p></div>
+        <div class="bg-white p-3 md:p-4 rounded-xl shadow text-center"><p class="text-xs text-gray-500">수익 / 손실</p><p id="stat-winloss" class="text-lg md:text-xl font-bold">0 / 0</p></div>
+        <div class="bg-white p-3 md:p-4 rounded-xl shadow text-center"><p class="text-xs text-gray-500">최고 수익률</p><p id="stat-best" class="text-sm md:text-lg font-bold truncate">-</p></div>
+        <div class="bg-white p-3 md:p-4 rounded-xl shadow text-center"><p class="text-xs text-gray-500">확신도(상/중/하)</p><p id="stat-conviction" class="text-sm font-bold mt-1">- / - / -</p></div>
+        <div class="bg-white p-3 md:p-4 rounded-xl shadow text-center"><p class="text-xs text-gray-500">베스트(섹터/이유)</p><p id="stat-best-reason" class="text-xs font-bold mt-1 truncate">- / -</p></div>
     </div>
 
-    <div class="max-w-6xl mx-auto mb-8 bg-white p-6 rounded-xl shadow">
-        <h2 class="text-lg font-bold mb-4">새 종목 점찍기</h2>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <input type="text" id="input-name" placeholder="종목명" class="border p-2 rounded">
+    <div class="max-w-6xl mx-auto mb-8 bg-white p-5 rounded-xl shadow">
+        <h2 class="text-lg font-bold mb-4 border-b pb-2">새 종목 점찍기</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <input type="text" id="input-name" placeholder="종목명" class="border p-2 rounded w-full">
             
-            <div class="flex space-x-2">
-                <select id="input-sector" class="border p-2 rounded w-full" onchange="toggleCustom('input-sector', 'custom-sector')">
+            <div class="flex flex-col space-y-2">
+                <select id="input-sector" class="border p-2 rounded w-full bg-white" onchange="toggleCustom('input-sector', 'custom-sector')">
                     <option value="">섹터 선택</option>
                     <option>반도체</option><option>방산</option><option>양자컴퓨터</option><option>우주</option><option>소비재</option><option>바이오/제약</option><option>이차전지</option><option>AI/소프트웨어</option><option>엔터테인먼트</option><option>금융</option><option value="기타">기타 (직접입력)</option>
                 </select>
-                <input type="text" id="custom-sector" placeholder="직접 입력" class="border p-2 rounded hidden w-full">
+                <input type="text" id="custom-sector" placeholder="섹터 직접 입력" class="border p-2 rounded hidden w-full">
             </div>
 
-            <select id="input-conviction" class="border p-2 rounded">
+            <select id="input-conviction" class="border p-2 rounded w-full bg-white">
                 <option value="">확신도 선택</option>
                 <option>상</option><option>중</option><option>하</option>
             </select>
 
-            <div class="flex space-x-2">
-                <select id="input-reason" class="border p-2 rounded w-full" onchange="toggleCustom('input-reason', 'custom-reason')">
+            <div class="flex flex-col space-y-2">
+                <select id="input-reason" class="border p-2 rounded w-full bg-white" onchange="toggleCustom('input-reason', 'custom-reason')">
                     <option value="">매수 이유</option>
                     <option>대세테마</option><option>실적</option><option>유상증자</option><option>감자</option><option>IPO</option><option>합병</option><option>신제품/신기술 출시</option><option>차트/기술적 분석</option><option>정부 정책 수혜</option><option>외인/기관 수급</option><option value="기타">기타 (직접입력)</option>
                 </select>
-                <input type="text" id="custom-reason" placeholder="직접 입력" class="border p-2 rounded hidden w-full">
+                <input type="text" id="custom-reason" placeholder="이유 직접 입력" class="border p-2 rounded hidden w-full">
             </div>
 
-            <input type="date" id="input-date" class="border p-2 rounded">
-            <input type="number" id="input-buy" placeholder="점찍은 날 가격(매수가)" class="border p-2 rounded">
-            <input type="text" id="input-target" placeholder="목표가/손절가" class="border p-2 rounded">
-            <button onclick="addStock()" class="bg-gray-800 hover:bg-black text-white p-2 rounded font-bold transition">등록하기</button>
+            <input type="date" id="input-date" class="border p-2 rounded w-full">
+            <input type="number" id="input-buy" placeholder="점찍은 날 가격(매수가)" class="border p-2 rounded w-full">
+            <input type="text" id="input-target" placeholder="목표가/손절가" class="border p-2 rounded w-full">
+            <button onclick="addStock()" class="bg-gray-800 hover:bg-black text-white p-2 rounded font-bold transition w-full shadow">등록하기</button>
         </div>
     </div>
 
-    <div class="max-w-6xl mx-auto mb-8 bg-white p-6 rounded-xl shadow overflow-x-auto">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-bold">관찰 중인 시나리오</h2>
-            <div class="flex space-x-2 text-sm">
-                <select id="filter-sector" onchange="renderTables()" class="border p-1 rounded"><option value="all">모든 섹터</option></select>
-                <select id="filter-conviction" onchange="renderTables()" class="border p-1 rounded"><option value="all">모든 확신도</option></select>
-                <select id="filter-reason" onchange="renderTables()" class="border p-1 rounded"><option value="all">모든 매수이유</option></select>
+    <div class="max-w-6xl mx-auto mb-8 bg-transparent">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 bg-white p-4 rounded-xl shadow">
+            <h2 class="text-lg font-bold mb-3 md:mb-0">관찰 중인 시나리오</h2>
+            <div class="flex flex-wrap gap-2 w-full md:w-auto">
+                <select id="filter-sector" onchange="renderTables()" class="border p-1.5 text-sm rounded bg-gray-50 flex-1 md:flex-none"><option value="all">모든 섹터</option></select>
+                <select id="filter-conviction" onchange="renderTables()" class="border p-1.5 text-sm rounded bg-gray-50 flex-1 md:flex-none"><option value="all">모든 확신도</option></select>
+                <select id="filter-reason" onchange="renderTables()" class="border p-1.5 text-sm rounded bg-gray-50 flex-1 md:flex-none"><option value="all">모든 매수이유</option></select>
             </div>
         </div>
-        <table class="w-full text-left border-collapse min-w-[800px]">
-            <thead>
-                <tr class="border-b bg-gray-50 text-sm">
-                    <th class="p-2">종목명</th><th class="p-2">섹터</th><th class="p-2">확신도</th><th class="p-2">매수이유</th>
-                    <th class="p-2">경과일</th><th class="p-2">매수가</th><th class="p-2">현재가 입력</th><th class="p-2">수익률</th><th class="p-2">관리</th>
-                </tr>
-            </thead>
-            <tbody id="active-list"></tbody>
-        </table>
+        <div id="active-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
 
-    <div class="max-w-6xl mx-auto mb-8 bg-gray-50 p-6 rounded-xl border">
-        <h2 class="text-lg font-bold mb-4 text-gray-600">종료된 시나리오</h2>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse min-w-[800px] text-gray-500">
-                <thead>
-                    <tr class="border-b text-sm">
-                        <th class="p-2">종목명</th><th class="p-2">섹터</th><th class="p-2">매수이유</th><th class="p-2">매수가</th>
-                        <th class="p-2">최종가</th><th class="p-2">최종 수익률</th><th class="p-2">복기 한 줄</th><th class="p-2">관리</th>
-                    </tr>
-                </thead>
-                <tbody id="ended-list"></tbody>
-            </table>
-        </div>
+    <div class="max-w-6xl mx-auto mb-8">
+        <h2 class="text-lg font-bold mb-4 text-gray-600 px-2">종료된 시나리오</h2>
+        <div id="ended-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
 
     <script>
@@ -121,7 +105,7 @@
         
         // PWA Service Worker Registration
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW 설정 안됨 (로컬 환경이 아닐 수 있음)'));
+            navigator.serviceWorker.register('sw.js').catch(err => console.log('SW 설정 안됨'));
         }
 
         // Initialize Date
@@ -134,7 +118,15 @@
             renderTables();
         }
 
-        // --- Streak Logic ---
+        // [버그 수정] XSS 방어용 텍스트 이스케이프 함수 추가
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>'"]/g, tag => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+            }[tag]));
+        }
+
+        // [버그 수정] Streak 연속 확인 논리 오류 해결
         function checkStreakOnLoad() {
             const today = new Date().toDateString();
             const lastCheck = localStorage.getItem('lastCheckDate');
@@ -143,11 +135,12 @@
             if (lastCheck !== today) {
                 document.getElementById('warning-msg').classList.remove('hidden');
                 
-                // Check if streak is broken
                 const yesterday = new Date();
                 yesterday.setDate(yesterday.getDate() - 1);
+                
+                // 마지막 출석일이 '어제'도 아니라면 스트릭 리셋
                 if (lastCheck !== yesterday.toDateString() && lastCheck != null) {
-                    streak = 0; // Reset
+                    streak = 0; 
                     localStorage.setItem('streak', streak);
                 }
             } else {
@@ -206,18 +199,24 @@
 
             const newStock = {
                 id: Date.now().toString(),
-                name: document.getElementById('input-name').value,
-                sector: sector,
+                name: document.getElementById('input-name').value.trim(),
+                sector: sector.trim(),
                 conviction: document.getElementById('input-conviction').value,
-                reason: reason,
+                reason: reason.trim(),
                 date: document.getElementById('input-date').value,
                 buyPrice: parseFloat(document.getElementById('input-buy').value),
-                targetPrice: document.getElementById('input-target').value,
+                targetPrice: document.getElementById('input-target').value.trim(),
                 currentPrice: null
             };
 
             if(!newStock.name || !newStock.buyPrice) { alert('종목명과 매수가는 필수입니다.'); return; }
             stocks.push(newStock);
+            
+            // 폼 초기화
+            document.getElementById('input-name').value = '';
+            document.getElementById('input-buy').value = '';
+            document.getElementById('input-target').value = '';
+            
             save();
             updateFilters();
         }
@@ -237,7 +236,7 @@
                 const note = prompt('종료 복기 한 줄을 적어주세요:');
                 if(note !== null) {
                     const stock = stocks[stockIndex];
-                    stock.review = note;
+                    stock.review = note.trim();
                     stocks.splice(stockIndex, 1);
                     endedStocks.push(stock);
                     save();
@@ -268,7 +267,7 @@
 
             const fillFilter = (el, items, defaultText) => {
                 const currentVal = el.value;
-                el.innerHTML = `<option value="all">${defaultText}</option>` + items.map(i => `<option value="${i}">${i}</option>`).join('');
+                el.innerHTML = `<option value="all">${defaultText}</option>` + items.map(i => `<option value="${escapeHTML(i)}">${escapeHTML(i)}</option>`).join('');
                 if(items.includes(currentVal)) el.value = currentVal;
             };
 
@@ -277,6 +276,7 @@
             fillFilter(rFilter, reasons, '모든 매수이유');
         }
 
+        // [모바일 최적화] 카드형 레이아웃 렌더링 함수 적용
         function renderTables() {
             const activeList = document.getElementById('active-list');
             const endedList = document.getElementById('ended-list');
@@ -292,34 +292,69 @@
                        (rFilter === 'all' || s.reason === rFilter);
             }).forEach(s => {
                 const roi = getROI(s.buyPrice, s.currentPrice);
-                const roiText = roi ? `<span class="${getColorClass(roi)}">${roi}%</span>` : '-';
+                const roiText = roi ? `<span class="${getColorClass(roi)} text-2xl">${roi}%</span>` : '<span class="text-gray-400 font-normal">-</span>';
+                const safeName = escapeHTML(s.name);
+                const safeSector = escapeHTML(s.sector);
+                const safeReason = escapeHTML(s.reason);
                 
                 activeList.innerHTML += `
-                    <tr class="border-b hover:bg-gray-50">
-                        <td class="p-2 font-bold">${s.name}</td>
-                        <td class="p-2 text-sm">${s.sector}</td>
-                        <td class="p-2 text-sm">${s.conviction}</td>
-                        <td class="p-2 text-sm truncate max-w-[120px]">${s.reason}</td>
-                        <td class="p-2 text-sm">${getElapsedDays(s.date)}일째</td>
-                        <td class="p-2 text-sm">${s.buyPrice.toLocaleString()}</td>
-                        <td class="p-2"><input type="number" value="${s.currentPrice || ''}" onchange="updatePrice('${s.id}', this.value)" class="border p-1 w-24 rounded" placeholder="현재가"></td>
-                        <td class="p-2">${roiText}</td>
-                        <td class="p-2"><button onclick="endStock('${s.id}')" class="bg-red-500 text-white text-xs px-2 py-1 rounded">정산</button></td>
-                    </tr>
+                    <div class="border border-gray-200 rounded-2xl p-4 bg-white shadow-sm flex flex-col justify-between hover:shadow-md transition">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="font-bold text-xl text-gray-800 mb-1">${safeName}</h3>
+                                <p class="text-xs text-gray-500 font-medium">⏳ ${getElapsedDays(s.date)}일째 관찰 중</p>
+                            </div>
+                            <div class="text-right leading-none mt-1">${roiText}</div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between bg-gray-50 rounded-xl p-3 mb-4 border border-gray-100">
+                            <div class="flex-1">
+                                <p class="text-[11px] text-gray-400 mb-1">매수가</p>
+                                <p class="font-bold text-gray-700">${s.buyPrice.toLocaleString()}<span class="text-xs font-normal ml-0.5">원</span></p>
+                            </div>
+                            <div class="text-gray-300 text-lg px-2">➡️</div>
+                            <div class="flex-1 text-right">
+                                <p class="text-[11px] text-gray-400 mb-1">현재가 입력</p>
+                                <input type="number" inputmode="numeric" value="${s.currentPrice || ''}" onchange="updatePrice('${s.id}', this.value)" class="border border-gray-300 p-1.5 w-24 rounded-lg text-right text-sm focus:outline-blue-500 focus:ring-2 focus:ring-blue-200 transition bg-white font-bold" placeholder="입력">
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-end mt-auto">
+                            <div class="flex flex-wrap gap-1.5 flex-1 pr-2">
+                                <span class="bg-indigo-50 text-indigo-600 text-[11px] px-2 py-1 rounded-md font-medium border border-indigo-100">${safeSector}</span>
+                                <span class="bg-orange-50 text-orange-600 text-[11px] px-2 py-1 rounded-md font-medium border border-orange-100">확신: ${escapeHTML(s.conviction)}</span>
+                                <span class="bg-gray-100 text-gray-600 text-[11px] px-2 py-1 rounded-md truncate max-w-[90px]">${safeReason}</span>
+                            </div>
+                            <button onclick="endStock('${s.id}')" class="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border border-red-200 text-xs px-3 py-1.5 rounded-lg font-bold shrink-0 transition">정산</button>
+                        </div>
+                    </div>
                 `;
             });
 
             endedList.innerHTML = '';
             endedStocks.forEach(s => {
                 const roi = getROI(s.buyPrice, s.currentPrice);
-                const roiText = roi ? `<span class="${getColorClass(roi)}">${roi}%</span>` : '-';
+                const roiText = roi ? `<span class="${getColorClass(roi)} text-lg">${roi}%</span>` : '-';
+                const safeName = escapeHTML(s.name);
+                
                 endedList.innerHTML += `
-                    <tr class="border-b hover:bg-gray-100 bg-gray-50 text-sm">
-                        <td class="p-2 font-bold">${s.name}</td><td class="p-2">${s.sector}</td><td class="p-2">${s.reason}</td>
-                        <td class="p-2">${s.buyPrice.toLocaleString()}</td><td class="p-2">${s.currentPrice ? s.currentPrice.toLocaleString() : '-'}</td>
-                        <td class="p-2">${roiText}</td><td class="p-2 max-w-xs truncate" title="${s.review}">${s.review}</td>
-                        <td class="p-2"><button onclick="restoreStock('${s.id}')" class="bg-blue-500 text-white text-xs px-2 py-1 rounded">복원</button></td>
-                    </tr>
+                    <div class="border border-gray-200 rounded-2xl p-4 bg-gray-50 flex flex-col justify-between opacity-80">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="font-bold text-gray-700">${safeName}</h3>
+                            <div>${roiText}</div>
+                        </div>
+                        <div class="text-sm text-gray-500 mb-3 bg-white p-3 rounded-xl border border-gray-100 flex justify-between">
+                            <div><span class="text-xs text-gray-400 block">매수가</span> <span class="font-semibold">${s.buyPrice.toLocaleString()}원</span></div>
+                            <div class="text-right"><span class="text-xs text-gray-400 block">최종가</span> <span class="font-semibold">${s.currentPrice ? s.currentPrice.toLocaleString()+'원' : '-'}</span></div>
+                        </div>
+                        <div class="bg-yellow-50 text-yellow-800 p-2.5 rounded-lg border border-yellow-100 text-xs mb-3 truncate font-medium" title="${escapeHTML(s.review)}">
+                            📝 ${escapeHTML(s.review)}
+                        </div>
+                        <div class="flex justify-between items-center mt-auto">
+                            <span class="bg-gray-200 text-gray-600 text-[11px] px-2 py-1 rounded-md">${escapeHTML(s.sector)}</span>
+                            <button onclick="restoreStock('${s.id}')" class="bg-white text-blue-600 border border-blue-200 hover:bg-blue-500 hover:text-white text-xs px-3 py-1.5 rounded-lg font-bold transition">복원</button>
+                        </div>
+                    </div>
                 `;
             });
         }
@@ -327,24 +362,19 @@
         // --- Dashboard Stats ---
         function updateDashboard() {
             const activeWithPrice = stocks.filter(s => s.currentPrice);
-            
             document.getElementById('stat-total').innerText = stocks.length + '개';
 
             if(activeWithPrice.length > 0) {
-                // Avg ROI
                 const totalROI = activeWithPrice.reduce((sum, s) => sum + parseFloat(getROI(s.buyPrice, s.currentPrice)), 0);
                 document.getElementById('stat-avg').innerText = (totalROI / activeWithPrice.length).toFixed(2) + '%';
                 
-                // Win/Loss
                 const wins = activeWithPrice.filter(s => getROI(s.buyPrice, s.currentPrice) > 0).length;
                 const losses = activeWithPrice.filter(s => getROI(s.buyPrice, s.currentPrice) < 0).length;
                 document.getElementById('stat-winloss').innerText = `${wins} / ${losses}`;
 
-                // Best Stock
                 const bestStock = activeWithPrice.reduce((max, s) => parseFloat(getROI(s.buyPrice, s.currentPrice)) > parseFloat(getROI(max.buyPrice, max.currentPrice)) ? s : max, activeWithPrice[0]);
-                document.getElementById('stat-best').innerText = `${getROI(bestStock.buyPrice, bestStock.currentPrice)}% (${bestStock.name})`;
+                document.getElementById('stat-best').innerText = `${getROI(bestStock.buyPrice, bestStock.currentPrice)}% (${escapeHTML(bestStock.name)})`;
 
-                // Win rate by conviction
                 const getRate = (level) => {
                     const group = activeWithPrice.filter(s => s.conviction === level);
                     if(group.length === 0) return '-';
@@ -353,7 +383,6 @@
                 };
                 document.getElementById('stat-conviction').innerText = `${getRate('상')} / ${getRate('중')} / ${getRate('하')}`;
 
-                // Best Sector & Reason
                 const groupByAvg = (key) => {
                     const groups = {};
                     activeWithPrice.forEach(s => {
@@ -365,10 +394,9 @@
                         const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
                         if(avg > maxAvg) { maxAvg = avg; best = k; }
                     }
-                    return best;
+                    return escapeHTML(best);
                 };
                 document.getElementById('stat-best-reason').innerText = `${groupByAvg('sector')} / ${groupByAvg('reason')}`;
-
             } else {
                 document.getElementById('stat-avg').innerText = '0%';
                 document.getElementById('stat-winloss').innerText = '0 / 0';
@@ -420,10 +448,8 @@
                 if(rows.length < 2) return alert('유효하지 않은 CSV 파일입니다.');
                 
                 let newStocks = [], newEnded = [];
-                // Simple CSV parser ignoring headers
                 for(let i=1; i<rows.length; i++) {
                     const row = rows[i];
-                    // Regex to handle commas inside quotes
                     const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)?.map(col => col.replace(/(^"|"$)/g, '').replace(/""/g, '"')) || [];
                     if(cols.length < 8) continue;
 
@@ -445,7 +471,7 @@
                 alert('데이터가 성공적으로 복구되었습니다.');
             };
             reader.readAsText(file);
-            event.target.value = ''; // Reset input
+            event.target.value = '';
         }
 
         // Initialize
