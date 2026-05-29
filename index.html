@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>주식 안목 기르기 대시보드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body { font-family: 'Pretendard', sans-serif; background-color: #F4F5F9; }
+        
+        .glass-card { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.5); }
+        .text-gradient { background: linear-gradient(135deg, #2563eb, #7c3aed); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        input, select, textarea { font-size: 16px !important; outline: none; }
+        ::-webkit-scrollbar { width: 0px; height: 0px; } /* 스크롤바 숨김으로 깔끔함 유지 */
+        
+        .chip { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #6b7280; background-color: #f3f4f6; border: 1px solid #e5e7eb; transition: all 0.2s; cursor: pointer; }
+        .chip.active { background-color: #1e293b; color: #ffffff; border-color: #1e293b; }
+        
+        .modal-enter { animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes modalFadeIn { from { opacity: 0; transform: translateY(20px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    </style>
+</head>
+<body class="text-gray-800 pb-24">
+
+    <div class="sticky top-0 z-10 glass-card px-4 py-3 mb-4 shadow-sm flex justify-between items-center">
+        <h1 class="text-xl font-extrabold tracking-tight text-gray-900">📈 <span class="text-gradient">Stock Insight</span></h1>
+        <div class="flex items-center gap-2">
+            <div id="streak-banner" class="text-[11px] md:text-sm font-bold text-orange-600 bg-orange-100/50 px-2.5 py-1.5 rounded-lg border border-orange-200">
+                🔥 <span id="streak-count">0</span>일 연속
+            </div>
+            <button onclick="dailyCheck()" class="bg-gray-900 hover:bg-gray-800 text-white px-3 py-1.5 rounded-lg font-bold text-xs transition shadow-md">
+                확인완료
+            </button>
+        </div>
+    </div>
+    
+    <div id="warning-msg" class="mx-4 mb-4 bg-red-50 border border-red-200 text-red-600 p-2.5 rounded-xl shadow-sm hidden text-xs font-bold text-center">
+        ⚠️ 오늘 종목을 점검하고 기록을 남겨주세요!
+    </div>
+
+    <div class="px-4 mb-6 grid grid-cols-2 lg:grid-cols-4 gap-3 max-w-7xl mx-auto">
+        <div class="glass-card p-4 rounded-2xl shadow-sm flex flex-col justify-between">
+            <span class="text-[11px] text-gray-500 font-bold mb-1">총 요약</span>
+            <span id="stat-total" class="text-lg font-extrabold text-gray-900 tracking-tight">0종목 <span class="text-sm font-medium text-gray-500">(0승 0패)</span></span>
+        </div>
+        
+        <div class="glass-card p-4 rounded-2xl shadow-sm flex flex-col justify-between">
+            <span class="text-[11px] text-gray-500 font-bold mb-1">평균 / 최고 수익률</span>
+            <span class="text-lg font-extrabold tracking-tight"><span id="stat-avg" class="text-gray-900">0%</span> <span class="text-gray-300">/</span> <span id="stat-best" class="text-red-500">0%</span></span>
+        </div>
+
+        <div class="glass-card p-3 rounded-2xl shadow-sm flex flex-col justify-between">
+            <span class="text-[10px] text-gray-500 font-bold mb-1 border-b border-gray-100 pb-1">확신도 승률 (강/보/긴)</span>
+            <span id="stat-conviction" class="text-xs font-extrabold mt-1 text-gray-800 tracking-wider">- / - / -</span>
+        </div>
+
+        <div class="glass-card p-3 rounded-2xl shadow-sm flex flex-col justify-between relative overflow-hidden">
+            <div class="absolute right-0 top-0 w-8 h-full bg-gradient-to-l from-white to-transparent pointer-events-none"></div>
+            <span class="text-[10px] text-blue-600 font-bold mb-1 border-b border-blue-50 pb-1">베스트/워스트 패턴 (섹터/이유/확신)</span>
+            <div class="mt-1 flex flex-col gap-0.5 whitespace-nowrap">
+                <span id="stat-best-src" class="text-[10px] font-bold text-red-600">🏆 - / - / -</span>
+                <span id="stat-worst-src" class="text-[10px] font-bold text-blue-600">📉 - / - / -</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="px-4 mb-4 flex justify-between items-center max-w-7xl mx-auto">
+        <button onclick="toggleForm()" class="bg-gray-900 text-white text-sm px-4 py-2 rounded-xl font-bold shadow-lg hover:shadow-xl transition transform hover:-translate-y-0.5">
+            + 새 시나리오 추가
+        </button>
+        <div class="flex space-x-2">
+            <button onclick="exportCSV()" class="bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-xl text-[11px] font-bold shadow-sm">내보내기</button>
+            <label class="bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-xl text-[11px] font-bold shadow-sm cursor-pointer">
+                가져오기 <input type="file" accept=".csv" class="hidden" onchange="importCSV(event)">
+            </label>
+        </div>
+    </div>
+
+    <div id="add-form-container" class="px-4 mb-6 max-w-7xl mx-auto hidden">
+        <div class="bg-white p-5 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
+            <h2 class="text-sm font-extrabold text-gray-800 mb-4 flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 block"></span> 기본 정보</h2>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <input type="text" id="input-name" placeholder="종목명" class="bg-gray-50 border-none p-3 rounded-xl text-sm font-bold w-full focus:ring-2 focus:ring-blue-500 transition">
+                <input type="date" id="input-date" class="bg-gray-50 border-none p-3 rounded-xl text-sm font-bold w-full focus:ring-2 focus:ring-blue-500 transition text-gray-600">
+                <input type="number" id="input-buy" placeholder="매수가" class="bg-gray-50 border-none p-3 rounded-xl text-sm font-bold w-full focus:ring-2 focus:ring-blue-500 transition">
+                <input type="text" id="input-target" placeholder="목표/손절가" class="bg-gray-50 border-none p-3 rounded-xl text-sm font-bold w-full focus:ring-2 focus:ring-blue-500 transition">
+            </div>
+
+            <h2 class="text-sm font-extrabold text-gray-800 mb-3 mt-6 flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-purple-500 block"></span> 속성 분류</h2>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <select id="input-sector" class="bg-gray-50 border-none p-3 rounded-xl text-sm font-bold w-full" onchange="toggleCustom('input-sector', 'custom-sector')">
+                    <option value="">섹터 선택</option>
+                    <option>반도체</option><option>방산</option><option>양자/우주</option><option>바이오/제약</option><option>이차전지</option><option>AI/SW</option><option>소비재/금융</option><option value="기타">기타(직접입력)</option>
+                </select>
+                <select id="input-conviction" class="bg-gray-50 border-none p-3 rounded-xl text-sm font-bold w-full">
+                    <option value="">확신도</option>
+                    <option class="text-red-600">강한확신</option><option class="text-gray-800">보통확신</option><option class="text-blue-600">긴가민가</option>
+                </select>
+            </div>
+            <input type="text" id="custom-sector" placeholder="섹터 직접 입력" class="bg-gray-50 border-none p-3 rounded-xl text-sm font-bold w-full mb-4 hidden">
+
+            <p class="text-xs text-gray-500 font-bold mb-2">매수 이유 <span class="text-[10px] font-normal">(다중 선택)</span></p>
+            <div id="reason-chips" class="flex flex-wrap gap-2 mb-2"></div>
+            <input type="text" id="custom-reason" placeholder="기타 이유를 적어주세요" class="bg-gray-50 border-none p-3 rounded-xl text-sm font-bold w-full hidden mt-2">
+            
+            <button onclick="addStock()" class="bg-gradient-to-r from-gray-900 to-gray-800 text-white px-5 py-3.5 rounded-xl font-bold w-full text-sm shadow-lg mt-6">등록 완료하기</button>
+        </div>
+    </div>
+
+    <div class="px-4 mb-8 max-w-7xl mx-auto">
+        <div class="flex justify-between items-end mb-3 px-1">
+            <h2 class="text-base font-extrabold text-gray-900 tracking-tight">👀 관찰 중인 시나리오</h2>
+            <div class="flex gap-1.5">
+                <select id="filter-sector" onchange="renderTables()" class="bg-transparent text-gray-500 font-bold text-[11px] outline-none"><option value="all">섹터 전체</option></select>
+                <select id="filter-conviction" onchange="renderTables()" class="bg-transparent text-gray-500 font-bold text-[11px] outline-none"><option value="all">확신도 전체</option></select>
+            </div>
+        </div>
+        <div id="active-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+    </div>
+
+    <div class="px-4 mb-8 max-w-7xl mx-auto">
+        <h2 class="text-sm font-extrabold text-gray-400 mb-3 px-1">🏁 정산 완료 보관함</h2>
+        <div id="ended-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 opacity-70 hover:opacity-100 transition-opacity duration-300"></div>
+    </div>
+
+    <div id="update-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50 p-4 transition-opacity">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl modal-enter">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-extrabold text-lg text-gray-900">시세 및 상태 업데이트</h3>
+                <span id="update-date-display" class="text-xs text-gray-400 font-medium"></span>
+            </div>
+            
+            <label class="block text-xs font-bold text-gray-500 mb-1.5">현재가 입력</label>
+            <div class="relative mb-5">
+                <input type="number" id="update-price" class="bg-gray-50 border-none p-4 rounded-xl text-lg font-extrabold w-full text-right pr-8 focus:ring-2 focus:ring-blue-500" placeholder="0">
+                <span class="absolute right-3 top-4 text-gray-400 font-bold">원</span>
+            </div>
+
+            <label class="block text-xs font-bold text-gray-500 mb-1.5">현재 상태 평가 <span class="text-[10px] font-normal">(다중 선택)</span></label>
+            <div id="update-status-chips" class="flex flex-wrap gap-2 mb-2"></div>
+            <input type="text" id="update-custom-status" placeholder="기타 상태 메모" class="bg-gray-50 border-none p-3 rounded-xl text-sm font-bold w-full hidden mt-2 mb-4">
+            
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('update-modal')" class="flex-1 bg-gray-100 text-gray-600 py-3.5 rounded-xl text-sm font-bold transition hover:bg-gray-200">닫기</button>
+                <button onclick="submitUpdate()" class="flex-1 bg-blue-600 text-white py-3.5 rounded-xl text-sm font-extrabold shadow-lg shadow-blue-500/30 transition hover:bg-blue-700">기록 저장</button>
+            </div>
+            <input type="hidden" id="update-target-id">
+        </div>
+    </div>
+
+    <div id="end-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50 p-4 transition-opacity">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl modal-enter">
+            <h3 class="font-extrabold text-lg mb-1 text-gray-900 flex items-center gap-2"><span class="text-2xl">⚖️</span> 종목 정산</h3>
+            <p class="text-[11px] text-gray-500 mb-5 font-medium border-b border-gray-100 pb-3" id="end-modal-subtitle">냉정하게 매매를 복기해 보세요.</p>
+            
+            <label class="block text-xs font-bold text-gray-500 mb-2">성공/실패 요인 분석 <span class="text-[10px] font-normal">(다중 선택)</span></label>
+            <div id="end-review-chips" class="flex flex-wrap gap-2 mb-2"></div>
+            <input type="text" id="end-custom-review" placeholder="나만의 복기 내용을 적어주세요" class="bg-gray-50 border-none p-3 rounded-xl text-sm font-bold w-full hidden mt-2 mb-4">
+            
+            <div class="flex gap-2 mt-6">
+                <button onclick="closeModal('end-modal')" class="flex-1 bg-gray-100 text-gray-600 py-3.5 rounded-xl text-sm font-bold transition hover:bg-gray-200">취소</button>
+                <button onclick="submitEnd()" class="flex-1 bg-red-500 text-white py-3.5 rounded-xl text-sm font-extrabold shadow-lg shadow-red-500/30 transition hover:bg-red-600">정산 확정</button>
+            </div>
+            <input type="hidden" id="end-target-id">
+        </div>
+    </div>
+
+    <script>
+        // 공통 데이터 리스트
+        const REASON_LIST = ['대세테마', '실적', '유상증자/감자', 'IPO/합병', '신기술출시', '차트/수급', '정부정책', '기타'];
+        const STATUS_LIST = ['유지(변동없음)', '대세테마', '실적', '유상증자/감자', 'IPO/합병', '신기술출시', '차트/수급', '정부정책', '기타'];
+        const REVIEW_LIST = ['성공적인 매매', '뇌동매매', '추격매수', '손절 타이밍 놓침', '비자발적 장기투자', '뉴스/찌라시 현혹', '기술지표/차트 맹신', '분할매수/매도 원칙 어김', '비중 조절 실패', '익절 타이밍 놓침', '기타'];
+        
+        let selectedReasons = new Set();
+        let selectedStatuses = new Set();
+        let selectedReviews = new Set();
+
+        let stocks = JSON.parse(localStorage.getItem('stocks')) || [];
+        let endedStocks = JSON.parse(localStorage.getItem('endedStocks')) || [];
+        
+        // --- 데이터 자동 마이그레이션 (과거 버전 호환 및 배열화) ---
+        stocks = stocks.map(s => {
+            if (s.conviction === '상') s.conviction = '강한확신';
+            if (s.conviction === '중') s.conviction = '보통확신';
+            if (s.conviction === '하') s.conviction = '긴가민가';
+            if (!s.reasons) s.reasons = s.reason ? [s.reason] : [];
+            if (!s.history) s.history = [];
+            // 과거 단일 string 상태를 배열로 마이그레이션
+            s.history = s.history.map(h => {
+                if(typeof h.status === 'string') h.status = [h.status];
+                return h;
+            });
+            return s;
+        });
+
+        endedStocks = endedStocks.map(s => {
+            if (s.conviction === '상') s.conviction = '강한확신';
+            if (s.conviction === '중') s.conviction = '보통확신';
+            if (s.conviction === '하') s.conviction = '긴가민가';
+            if (!s.reasons) s.reasons = s.reason ? [s.reason] : [];
+            // 과거 단일 string 복기를 배열로 마이그레이션
+            if (typeof s.review === 'string') s.review = [s.review];
+            return s;
+        });
+        localStorage.setItem('stocks', JSON.stringify(stocks));
+
+        // Init Form & Chips
+        document.getElementById('input-date').valueAsDate = new Date();
+        renderChips('reason-chips', REASON_LIST, selectedReasons, 'custom-reason');
+        renderChips('update-status-chips', STATUS_LIST, selectedStatuses, 'update-custom-status');
+        renderChips('end-review-chips', REVIEW_LIST, selectedReviews, 'end-custom-review');
+
+        function save() {
+            localStorage.setItem('stocks', JSON.stringify(stocks));
+            localStorage.setItem('endedStocks', JSON.stringify(endedStocks));
+            updateDashboard();
+            renderTables();
+        }
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>'"]/g, tag => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;'}[tag]));
+        }
+
+        // --- Streak ---
+        function dailyCheck() {
+            const today = new Date().toDateString();
+            localStorage.setItem('streak', (parseInt(localStorage.getItem('streak')||'0') + 1));
+            localStorage.setItem('lastCheckDate', today);
+            checkStreakOnLoad();
+        }
+
+        function checkStreakOnLoad() {
+            const today = new Date().toDateString();
+            const lastCheck = localStorage.getItem('lastCheckDate');
+            let streak = parseInt(localStorage.getItem('streak') || '0');
+
+            if (lastCheck !== today) {
+                document.getElementById('warning-msg').classList.remove('hidden');
+                const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+                if (lastCheck !== yesterday.toDateString() && lastCheck != null) streak = 0; 
+                localStorage.setItem('streak', streak);
+            } else {
+                document.getElementById('warning-msg').classList.add('hidden');
+            }
+            document.getElementById('streak-count').innerText = streak;
+        }
+
+        // --- UI Utils ---
+        function toggleForm() {
+            document.getElementById('add-form-container').classList.toggle('hidden');
+        }
+
+        function toggleCustom(selectId, customId) {
+            const val = document.getElementById(selectId).value;
+            const custom = document.getElementById(customId);
+            if(val === '기타') custom.classList.remove('hidden'); else { custom.classList.add('hidden'); custom.value = ''; }
+        }
+
+        // 공통 Chip 렌더러
+        function renderChips(containerId, list, setObj, customInputId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = list.map(item => `
+                <span onclick="toggleChip(this, '${item}', '${containerId}', '${customInputId}')" class="chip ${setObj.has(item) ? 'active' : ''}">${item}</span>
+            `).join('');
+        }
+
+        function toggleChip(element, value, containerId, customInputId) {
+            let setObj;
+            if(containerId === 'reason-chips') setObj = selectedReasons;
+            else if(containerId === 'update-status-chips') setObj = selectedStatuses;
+            else if(containerId === 'end-review-chips') setObj = selectedReviews;
+
+            element.classList.toggle('active');
+            if(setObj.has(value)) setObj.delete(value);
+            else setObj.add(value);
+
+            const customInput = document.getElementById(customInputId);
+            if(setObj.has('기타')) customInput.classList.remove('hidden');
+            else { customInput.classList.add('hidden'); customInput.value = ''; }
+        }
+
+        function getElapsedDays(dateStr) { return Math.ceil(Math.abs(new Date() - new Date(dateStr)) / (1000 * 60 * 60 * 24)); }
+        function getROI(buy, current) { return (!current || current <= 0) ? null : (((current - buy) / buy) * 100).toFixed(2); }
+
+        function getROIColor(roi) {
+            if (roi > 0) return 'text-red-500 bg-red-50';
+            if (roi < 0) return 'text-blue-500 bg-blue-50';
+            return 'text-gray-700 bg-gray-100';
+        }
+
+        // --- Core Functions ---
+        function addStock() {
+            let sector = document.getElementById('input-sector').value;
+            if(sector === '기타') sector = document.getElementById('custom-sector').value;
+            
+            let finalReasons = Array.from(selectedReasons).filter(r => r !== '기타');
+            const customReason = document.getElementById('custom-reason').value.trim();
+            if(customReason && selectedReasons.has('기타')) finalReasons.push(customReason);
+
+            const newStock = {
+                id: Date.now().toString(),
+                name: document.getElementById('input-name').value.trim(),
+                sector: sector.trim(),
+                conviction: document.getElementById('input-conviction').value,
+                reasons: finalReasons.length > 0 ? finalReasons : ['이유없음'],
+                date: document.getElementById('input-date').value,
+                buyPrice: parseFloat(document.getElementById('input-buy').value),
+                targetPrice: document.getElementById('input-target').value.trim(),
+                history: []
+            };
+
+            if(!newStock.name || !newStock.buyPrice) return alert('종목명과 매수가는 필수입니다.');
+            
+            stocks.unshift(newStock); // 최신 항목 위로
+            
+            // 폼 초기화
+            selectedReasons.clear();
+            renderChips('reason-chips', REASON_LIST, selectedReasons, 'custom-reason');
+            document.getElementById('input-name').value = '';
+            document.getElementById('input-buy').value = '';
+            document.getElementById('input-target').value = '';
+            toggleForm();
+            save();
+        }
+
+        // --- Modals (Update & End) ---
+        function openUpdateModal(id) {
+            const stock = stocks.find(s => s.id === id);
+            document.getElementById('update-target-id').value = id;
+            
+            // 오늘 날짜 자동 입력 표시
+            const todayStr = new Date().toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' });
+            document.getElementById('update-date-display').innerText = todayStr;
+            
+            // 칩 및 인풋 초기화
+            selectedStatuses.clear();
+            renderChips('update-status-chips', STATUS_LIST, selectedStatuses, 'update-custom-status');
+            document.getElementById('update-price').value = stock.history.length > 0 ? stock.history[stock.history.length-1].price : '';
+            
+            const modal = document.getElementById('update-modal');
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+        }
+
+        function submitUpdate() {
+            const id = document.getElementById('update-target-id').value;
+            const stock = stocks.find(s => s.id === id);
+            const price = parseFloat(document.getElementById('update-price').value);
+            
+            if(!price) return alert('현재가를 입력해주세요.');
+
+            let finalStatus = Array.from(selectedStatuses).filter(s => s !== '기타');
+            const customStatus = document.getElementById('update-custom-status').value.trim();
+            if(customStatus && selectedStatuses.has('기타')) finalStatus.push(customStatus);
+            if(finalStatus.length === 0) finalStatus.push('업데이트됨');
+
+            stock.history.push({
+                date: new Date().toISOString().slice(0,10).substring(5).replace('-','.'), // MM.DD
+                price: price,
+                status: finalStatus
+            });
+            save();
+            dailyCheck();
+            closeModal('update-modal');
+        }
+
+        function openEndModal(id) {
+            const stock = stocks.find(s => s.id === id);
+            document.getElementById('end-target-id').value = id;
+            document.getElementById('end-modal-subtitle').innerText = `${stock.name} 매매를 돌아봅니다.`;
+            
+            selectedReviews.clear();
+            renderChips('end-review-chips', REVIEW_LIST, selectedReviews, 'end-custom-review');
+            
+            const modal = document.getElementById('end-modal');
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+        }
+
+        function submitEnd() {
+            const id = document.getElementById('end-target-id').value;
+            const stockIndex = stocks.findIndex(s => s.id === id);
+            
+            if(stockIndex > -1) {
+                let finalReview = Array.from(selectedReviews).filter(r => r !== '기타');
+                const customReview = document.getElementById('end-custom-review').value.trim();
+                if(customReview && selectedReviews.has('기타')) finalReview.push(customReview);
+                if(finalReview.length === 0) finalReview.push('복기 내용 없음');
+
+                const stock = stocks[stockIndex];
+                stock.review = finalReview;
+                stocks.splice(stockIndex, 1);
+                endedStocks.unshift(stock);
+                save();
+                closeModal('end-modal');
+            }
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            modal.classList.add('hidden'); modal.classList.remove('flex');
+        }
+
+        function restoreStock(id) {
+            const stockIndex = endedStocks.findIndex(s => s.id === id);
+            if(stockIndex > -1) {
+                const stock = endedStocks[stockIndex];
+                delete stock.review;
+                endedStocks.splice(stockIndex, 1);
+                stocks.unshift(stock);
+                save();
+            }
+        }
+
+        // --- Render ---
+        function updateFilters() {
+            const sFilter = document.getElementById('filter-sector');
+            const cFilter = document.getElementById('filter-conviction');
+            const sectors = [...new Set(stocks.map(s => s.sector))];
+            
+            const fillFilter = (el, items, defaultText) => {
+                const currentVal = el.value;
+                el.innerHTML = `<option value="all">${defaultText}</option>` + items.map(i => `<option value="${escapeHTML(i)}">${escapeHTML(i)}</option>`).join('');
+                if(items.includes(currentVal)) el.value = currentVal;
+            };
+            fillFilter(sFilter, sectors, '섹터 전체');
+            fillFilter(cFilter, ['강한확신', '보통확신', '긴가민가'], '확신도 전체');
+        }
+
+        function renderTables() {
+            const activeList = document.getElementById('active-list');
+            const endedList = document.getElementById('ended-list');
+            const sFilter = document.getElementById('filter-sector').value;
+            const cFilter = document.getElementById('filter-conviction').value;
+
+            // 압축된 모바일 최적화 카드 렌더링
+            activeList.innerHTML = stocks.filter(s => 
+                (sFilter === 'all' || s.sector === sFilter) && (cFilter === 'all' || s.conviction === cFilter)
+            ).map(s => {
+                const cur = s.history.length > 0 ? s.history[s.history.length-1].price : null;
+                const roi = getROI(s.buyPrice, cur);
+                const roiBadge = roi ? `<span class="px-2 py-0.5 rounded-md text-[13px] font-extrabold ${getROIColor(roi)}">${roi}%</span>` : `<span class="text-gray-300 text-[13px] font-bold">-</span>`;
+                
+                const historyHtml = s.history.slice(-3).reverse().map(h => 
+                    `<div class="flex items-center justify-between text-[10px] py-0.5 border-b border-gray-50 last:border-0">
+                        <span class="text-gray-400 w-8">${h.date}</span>
+                        <span class="font-bold text-gray-700 w-14 text-right">${h.price.toLocaleString()}</span>
+                        <span class="text-gray-500 truncate pl-2 flex-1">${escapeHTML(Array.isArray(h.status) ? h.status.join(', ') : h.status)}</span>
+                    </div>`
+                ).join('');
+
+                return `
+                    <div class="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col hover:shadow-md transition">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex-1 min-w-0 pr-2">
+                                <h3 class="font-extrabold text-gray-900 text-base truncate">${escapeHTML(s.name)}</h3>
+                                <div class="flex items-center gap-1 mt-0.5">
+                                    <span class="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-medium">${escapeHTML(s.sector)}</span>
+                                    <span class="text-[9px] ${s.conviction==='강한확신'?'text-red-500':(s.conviction==='긴가민가'?'text-blue-500':'text-gray-500')} font-bold">${s.conviction}</span>
+                                    <span class="text-[9px] text-gray-400 font-medium">· ${getElapsedDays(s.date)}일째</span>
+                                </div>
+                            </div>
+                            <div class="shrink-0 text-right">${roiBadge}</div>
+                        </div>
+
+                        <div class="flex justify-between items-center text-[11px] bg-gray-50/50 p-1.5 rounded-lg mb-2">
+                            <span class="text-gray-500">매수 <strong class="text-gray-800">${s.buyPrice.toLocaleString()}</strong></span>
+                            <span class="text-gray-400">목표 <strong class="text-gray-600">${escapeHTML(s.targetPrice) || '-'}</strong></span>
+                        </div>
+
+                        <div class="bg-white border border-gray-100 rounded-lg p-1.5 mb-2 h-[64px] overflow-hidden">
+                            ${historyHtml || '<div class="text-center text-gray-300 text-[10px] mt-4 font-medium">기록이 없습니다</div>'}
+                        </div>
+
+                        <div class="flex gap-1.5 mt-auto">
+                            <button onclick="openUpdateModal('${s.id}')" class="flex-1 bg-gray-900 text-white rounded-lg py-1.5 text-[11px] font-extrabold transition hover:bg-gray-800">기록 업데이트</button>
+                            <button onclick="openEndModal('${s.id}')" class="bg-white text-gray-400 border border-gray-200 hover:text-red-500 hover:border-red-200 rounded-lg px-3 py-1.5 text-[11px] font-bold transition">정산</button>
+                        </div>
+                    </div>`;
+            }).join('');
+
+            endedList.innerHTML = endedStocks.map(s => {
+                const cur = s.history.length > 0 ? s.history[s.history.length-1].price : null;
+                const roi = getROI(s.buyPrice, cur);
+                return `
+                    <div class="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm relative overflow-hidden">
+                        <div class="absolute left-0 top-0 w-1 h-full bg-gray-200"></div>
+                        <div class="flex justify-between items-center pl-2 mb-1.5">
+                            <span class="font-extrabold text-gray-700">${escapeHTML(s.name)}</span>
+                            ${roi ? `<span class="font-extrabold ${roi>0?'text-red-400':'text-blue-400'}">${roi}%</span>` : ''}
+                        </div>
+                        <div class="pl-2 text-[10px] text-gray-400 mb-2">
+                            매수 ${s.buyPrice.toLocaleString()} <span class="mx-1">→</span> 최종 ${cur ? cur.toLocaleString() : '-'}
+                        </div>
+                        <div class="pl-2 text-[11px] font-bold text-gray-600 bg-gray-50 p-2 rounded-lg leading-snug">
+                            <span class="text-gray-400 mr-1">📝</span> ${escapeHTML(Array.isArray(s.review) ? s.review.join(', ') : s.review)}
+                        </div>
+                        <div class="pl-2 mt-2 text-right">
+                            <button onclick="restoreStock('${s.id}')" class="text-[10px] text-blue-500 font-bold underline decoration-blue-200 underline-offset-2">보관함에서 꺼내기(복원)</button>
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+
+        // --- Analytics ---
+        function updateDashboard() {
+            const activeStocks = stocks.filter(s => s.history.length > 0);
+            document.getElementById('stat-total').innerHTML = `${stocks.length}종목 <span class="text-xs font-medium text-gray-500 ml-1">(${activeStocks.filter(s=>getROI(s.buyPrice, s.history[s.history.length-1].price)>0).length}승 ${activeStocks.filter(s=>getROI(s.buyPrice, s.history[s.history.length-1].price)<0).length}패)</span>`;
+
+            if(activeStocks.length > 0) {
+                const totalROI = activeStocks.reduce((sum, s) => sum + parseFloat(getROI(s.buyPrice, s.history[s.history.length-1].price)), 0);
+                document.getElementById('stat-avg').innerText = (totalROI / activeStocks.length).toFixed(1) + '%';
+                
+                const bestStock = activeStocks.reduce((max, s) => parseFloat(getROI(s.buyPrice, s.history[s.history.length-1].price)) > parseFloat(getROI(max.buyPrice, max.history[max.history.length-1].price)) ? s : max, activeStocks[0]);
+                document.getElementById('stat-best').innerText = `${getROI(bestStock.buyPrice, bestStock.history[bestStock.history.length-1].price)}%`;
+
+                const getRate = (level) => {
+                    const group = activeStocks.filter(s => s.conviction === level);
+                    if(!group.length) return '-';
+                    return Math.round((group.filter(s => getROI(s.buyPrice, s.history[s.history.length-1].price) > 0).length / group.length) * 100) + '%';
+                };
+                document.getElementById('stat-conviction').innerHTML = `<span class="text-red-500">${getRate('강한확신')}</span> <span class="text-gray-300">/</span> <span class="text-gray-800">${getRate('보통확신')}</span> <span class="text-gray-300">/</span> <span class="text-blue-500">${getRate('긴가민가')}</span>`;
+
+                const stats = { sector: {}, reason: {}, conviction: {} };
+                activeStocks.forEach(s => {
+                    const roi = parseFloat(getROI(s.buyPrice, s.history[s.history.length-1].price));
+                    if(!stats.sector[s.sector]) stats.sector[s.sector] = []; stats.sector[s.sector].push(roi);
+                    if(!stats.conviction[s.conviction]) stats.conviction[s.conviction] = []; stats.conviction[s.conviction].push(roi);
+                    s.reasons.forEach(r => { if(!stats.reason[r]) stats.reason[r] = []; stats.reason[r].push(roi); });
+                });
+
+                const getExtreme = (groupObj, isBest) => {
+                    let extremeStr = '-', maxAvg = isBest ? -Infinity : Infinity;
+                    for (const [k, arr] of Object.entries(groupObj)) {
+                        const avg = arr.reduce((a,b)=>a+b,0) / arr.length;
+                        if(isBest ? avg > maxAvg : avg < maxAvg) { maxAvg = avg; extremeStr = k; }
+                    }
+                    return extremeStr;
+                };
+
+                document.getElementById('stat-best-src').innerHTML = `🏆 ${escapeHTML(getExtreme(stats.sector, true))} <span class="text-gray-300 mx-0.5">/</span> ${escapeHTML(getExtreme(stats.reason, true))} <span class="text-gray-300 mx-0.5">/</span> ${escapeHTML(getExtreme(stats.conviction, true))}`;
+                document.getElementById('stat-worst-src').innerHTML = `📉 ${escapeHTML(getExtreme(stats.sector, false))} <span class="text-gray-300 mx-0.5">/</span> ${escapeHTML(getExtreme(stats.reason, false))} <span class="text-gray-300 mx-0.5">/</span> ${escapeHTML(getExtreme(stats.conviction, false))}`;
+
+            } else {
+                document.getElementById('stat-avg').innerText = '0%';
+                document.getElementById('stat-best').innerText = '0%';
+                document.getElementById('stat-conviction').innerText = '- / - / -';
+                document.getElementById('stat-best-src').innerText = '🏆 - / - / -';
+                document.getElementById('stat-worst-src').innerText = '📉 - / - / -';
+            }
+        }
+
+        // --- CSV CSV 배열 대응 백업 ---
+        function escapeCSV(str) {
+            if(!str) return '';
+            str = str.toString();
+            if(str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
+            return str;
+        }
+
+        function exportCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            csvContent += "Type,ID,Name,Sector,Conviction,Reasons,Date,BuyPrice,TargetPrice,History_JSON,Review\n";
+            
+            const rows = [];
+            stocks.forEach(s => {
+                rows.push(`Active,${s.id},${escapeCSV(s.name)},${escapeCSV(s.sector)},${s.conviction},${escapeCSV(s.reasons.join(' | '))},${s.date},${s.buyPrice},${escapeCSV(s.targetPrice)},${escapeCSV(JSON.stringify(s.history))},""`);
+            });
+            endedStocks.forEach(s => {
+                rows.push(`Ended,${s.id},${escapeCSV(s.name)},${escapeCSV(s.sector)},${s.conviction},${escapeCSV(s.reasons.join(' | '))},${s.date},${s.buyPrice},${escapeCSV(s.targetPrice)},${escapeCSV(JSON.stringify(s.history))},${escapeCSV(s.review.join(' | '))}`);
+            });
+            
+            csvContent += rows.join("\n");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `insight_backup_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+
+        function importCSV(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const rows = text.split('\n').filter(row => row.trim() !== '');
+                if(rows.length < 2) return alert('유효하지 않은 CSV 파일입니다.');
+                
+                let newStocks = [], newEnded = [];
+                for(let i=1; i<rows.length; i++) {
+                    const row = rows[i];
+                    const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)?.map(col => col.replace(/(^"|"$)/g, '').replace(/""/g, '"')) || [];
+                    if(cols.length < 8) continue;
+
+                    let historyArr = [];
+                    try { historyArr = JSON.parse(cols[9] || '[]'); } catch(e) {}
+
+                    const obj = {
+                        id: cols[1], name: cols[2], sector: cols[3], conviction: cols[4], 
+                        reasons: cols[5] ? cols[5].split(' | ') : ['이유없음'], 
+                        date: cols[6], buyPrice: parseFloat(cols[7]), 
+                        targetPrice: cols[8], history: historyArr
+                    };
+
+                    if(cols[0] === 'Active') newStocks.push(obj);
+                    else if(cols[0] === 'Ended') {
+                        obj.review = cols[10] ? cols[10].split(' | ') : ['복기 없음'];
+                        newEnded.push(obj);
+                    }
+                }
+                stocks = newStocks; endedStocks = newEnded;
+                save(); updateFilters(); alert('데이터가 성공적으로 복원되었습니다.');
+            };
+            reader.readAsText(file); event.target.value = '';
+        }
+
+        // Init
+        checkStreakOnLoad();
+        updateFilters();
+        updateDashboard();
+        renderTables();
+    </script>
+</body>
+</html>
